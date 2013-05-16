@@ -776,6 +776,16 @@ BOOL rdp_server_accept_client_keys(rdpRdp* rdp, wStream* s)
 	return TRUE;
 }
 
+/**
+ * After receiving client info, server sends License Error PDU with
+ * valid client.
+ * @msdn{cc240452}
+ *
+ * The license phase provides the server with the ability to send a
+ * license to the client.  However this is optional; the server can
+ * give a straight OK to the client.
+ * @msdn{cc241886}
+ */
 BOOL rdp_server_accept_client_info(rdpRdp* rdp, wStream* s)
 {
 

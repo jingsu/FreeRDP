@@ -85,7 +85,7 @@ struct rdp_freerdp_peer
 extern "C" {
 #endif
 
-FREERDP_API void freerdp_peer_context_new(freerdp_peer* client);
+FREERDP_API BOOL freerdp_peer_context_new(freerdp_peer* client);
 FREERDP_API void freerdp_peer_context_free(freerdp_peer* client);
 
 FREERDP_API freerdp_peer* freerdp_peer_new(int sockfd);

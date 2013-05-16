@@ -47,6 +47,9 @@ static BOOL freerdp_peer_initialize(freerdp_peer* client)
 
 static BOOL freerdp_peer_get_fds(freerdp_peer* client, void** rfds, int* rcount)
 {
+    if( !client || !client->context || !client->context->rdp )
+        return FALSE;
+
 	rfds[*rcount] = (void*)(long)(client->context->rdp->transport->TcpIn->sockfd);
 	(*rcount)++;
 
@@ -121,7 +124,7 @@ static BOOL peer_recv_data_pdu(freerdp_peer* client, wStream* s)
 			if (!client->activated)
 			{
 				/* Activate will be called everytime after the client is activated/reactivated. */
-			
+
 				IFCALLRET(client->Activate, client->activated, client);
 
 				if (!client->activated)
@@ -161,13 +164,13 @@ static BOOL peer_recv_data_pdu(freerdp_peer* client, wStream* s)
 
 static int peer_recv_tpkt_pdu(freerdp_peer* client, wStream* s)
 {
-	rdpRdp* rdp;
-	UINT16 length;
-	UINT16 pduType;
-	UINT16 pduLength;
-	UINT16 pduSource;
-	UINT16 channelId;
-	UINT16 securityFlags;
+	rdpRdp* rdp = NULL;
+	UINT16 length = 0;
+	UINT16 pduType = 0;
+	UINT16 pduLength = 0;
+	UINT16 pduSource = 0;
+	UINT16 channelId = 0;
+	UINT16 securityFlags = 0;
 
 	rdp = client->context->rdp;
 
@@ -368,7 +371,7 @@ static int freerdp_peer_send_channel_data(freerdp_peer* client, int channelId, B
 	return rdp_send_channel_data(client->context->rdp, channelId, data, size);
 }
 
-void freerdp_peer_context_new(freerdp_peer* client)
+BOOL freerdp_peer_context_new(freerdp_peer* client)
 {
 	rdpRdp* rdp;
 
@@ -398,6 +401,7 @@ void freerdp_peer_context_new(freerdp_peer* client)
 	transport_set_blocking_mode(rdp->transport, FALSE);
 
 	IFCALL(client->ContextNew, client, client->context);
+    return TRUE;
 }
 
 void freerdp_peer_context_free(freerdp_peer* client)
@@ -410,12 +414,9 @@ freerdp_peer* freerdp_peer_new(int sockfd)
 	freerdp_peer* client;
 
 	client = (freerdp_peer*) malloc(sizeof(freerdp_peer));
-	ZeroMemory(client, sizeof(freerdp_peer));
-
-	freerdp_tcp_set_no_delay(sockfd, TRUE);
-
 	if (client != NULL)
 	{
+        ZeroMemory(client, sizeof(freerdp_peer));
 		client->sockfd = sockfd;
 		client->ContextSize = sizeof(rdpContext);
 		client->Initialize = freerdp_peer_initialize;
@@ -424,7 +425,9 @@ freerdp_peer* freerdp_peer_new(int sockfd)
 		client->Close = freerdp_peer_close;
 		client->Disconnect = freerdp_peer_disconnect;
 		client->SendChannelData = freerdp_peer_send_channel_data;
+
 	}
+    freerdp_tcp_set_no_delay(sockfd, TRUE);
 
 	return client;
 }

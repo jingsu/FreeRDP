@@ -255,17 +255,21 @@ BOOL rdp_read_header(rdpRdp* rdp, wStream* s, UINT16* length, UINT16* channel_id
 	if (MCSPDU == DomainMCSPDU_DisconnectProviderUltimatum)
 	{
 		BYTE reason;
-		TerminateEventArgs e;
-		rdpContext* context = rdp->instance->context;
 
 		(void) per_read_enumerated(s, &reason, 0);
 		DEBUG_RDP("DisconnectProviderUltimatum from server, reason code 0x%02x\n", reason);
 
 		rdp->disconnect = TRUE;
 
-		EventArgsInit(&e, "freerdp");
-		e.code = 0;
-		PubSub_OnTerminate(context->pubSub, context, &e);
+        if( rdp->instance != NULL )
+        {
+            TerminateEventArgs e;
+            rdpContext* context = rdp->instance->context;
+
+            EventArgsInit(&e, "freerdp");
+            e.code = 0;
+            PubSub_OnTerminate(context->pubSub, context, &e);
+        }
 
 		return TRUE;
 	}
@@ -543,7 +547,7 @@ int rdp_recv_data_pdu(rdpRdp* rdp, wStream* s)
 		if (Stream_GetRemainingLength(s) < compressed_len - 18)
 		{
 			fprintf(stderr, "decompress_rdp: not enough bytes for compressed_len=%d\n", compressed_len);
-			return -1;	
+			return -1;
 		}
 
 		if (decompress_rdp(rdp->mppc_dec, Stream_Pointer(s), compressed_len - 18, compressed_type, &roff, &rlen))

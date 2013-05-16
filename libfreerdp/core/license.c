@@ -195,7 +195,7 @@ BOOL license_send(rdpLicense* license, wStream* s, BYTE type)
 	 * Using EXTENDED_ERROR_MSG_SUPPORTED here would cause mstsc to crash when
 	 * running in server mode! This flag seems to be incorrectly documented.
 	 */
-	flags = PREAMBLE_VERSION_3_0 | EXTENDED_ERROR_MSG_SUPPORTED;
+    flags = PREAMBLE_VERSION_3_0;
 
 	rdp_write_header(license->rdp, s, length, MCS_GLOBAL_CHANNEL_ID);
 	rdp_write_security_header(s, sec_flags);
@@ -1062,6 +1062,10 @@ void license_send_platform_challenge_response_packet(rdpLicense* license)
  * Send Server License Error - Valid Client Packet.\n
  * @msdn{cc241922}
  * @param license license module
+ *
+ * Personal terminal server can always send valid client.
+ * This is sent as an "error" message.
+ * @msdn{cc241890}
  */
 
 BOOL license_send_valid_client_error_packet(rdpLicense* license)
