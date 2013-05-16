@@ -264,7 +264,7 @@ BOOL rdp_client_connect(rdpRdp* rdp)
 	{
 		if (!connectErrorCode)
 		{
-			connectErrorCode = MCSCONNECTINITIALERROR;                      
+			connectErrorCode = MCSCONNECTINITIALERROR;
 		}
 		fprintf(stderr, "Error: unable to send MCS Connect Initial\n");
 		return FALSE;

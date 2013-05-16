@@ -1066,6 +1066,10 @@ void license_send_platform_challenge_response_packet(rdpLicense* license)
  * Send Server License Error - Valid Client Packet.\n
  * @msdn{cc241922}
  * @param license license module
+ *
+ * Personal terminal server can always send valid client.
+ * This is sent as an "error" message.
+ * @msdn{cc241890}
  */
 
 BOOL license_send_valid_client_error_packet(rdpLicense* license)

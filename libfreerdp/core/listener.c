@@ -67,7 +67,7 @@ static const char *inet_ntop(int af, const void* src, char* dst, socklen_t cnt)
 		getnameinfo((struct sockaddr *)&in, sizeof(struct sockaddr_in6), dst, cnt, NULL, 0, NI_NUMERICHOST);
 		return dst;
 	}
-	
+
 	return NULL;
 }
 #endif
@@ -312,6 +312,12 @@ static BOOL freerdp_listener_check_fds(freerdp_listener* instance)
 		}
 
 		client = freerdp_peer_new(peer_sockfd);
+        if (!client)
+        {
+            perror("failed to allocate peer object.");
+            close(peer_sockfd);
+            continue;
+        }
 
 		sin_addr = NULL;
 		if (peer_addr.ss_family == AF_INET)
