@@ -91,6 +91,7 @@ struct rdp_nego
 	char* cookie;
 	BYTE* RoutingToken;
 	DWORD RoutingTokenLength;
+    BOOL RoutingTokenMallocd;
 	BOOL send_preconnection_pdu;
 	UINT32 preconnection_id;
 	char* preconnection_blob;
@@ -140,7 +141,7 @@ void nego_enable_rdp(rdpNego* nego, BOOL enable_rdp);
 void nego_enable_tls(rdpNego* nego, BOOL enable_tls);
 void nego_enable_nla(rdpNego* nego, BOOL enable_nla);
 void nego_enable_ext(rdpNego* nego, BOOL enable_ext);
-void nego_set_routing_token(rdpNego* nego, BYTE* RoutingToken, DWORD RoutingTokenLength);
+void nego_set_routing_token(rdpNego* nego, BYTE* RoutingToken, DWORD RoutingTokenLength, BOOL mustFree);
 void nego_set_cookie(rdpNego* nego, char* cookie);
 void nego_set_cookie_max_length(rdpNego* nego, UINT32 cookie_max_length);
 void nego_set_send_preconnection_pdu(rdpNego* nego, BOOL send_pcpdu);
