@@ -54,8 +54,18 @@ struct rdp_redirection
 };
 typedef struct rdp_redirection rdpRedirection;
 
+/*
+ * Upon successful conversion, .length will contain the unicode size in BYTES.
+ * rc=0 on success, errno on failure.
+ * This will free the unicode string and reallocate memory for the conversion.
+ */
+int rdp_string_to_unicode(rdpString* str);
+
 BOOL rdp_recv_redirection_packet(rdpRdp* rdp, wStream* s);
 BOOL rdp_recv_enhanced_security_redirection_packet(rdpRdp* rdp, wStream* s);
+
+void rdp_send_redirection_packet(rdpRdp* rdp, wStream* s, rdpRedirection* info);
+void rdp_send_enhanced_security_redirection_packet(rdpRdp* rdp, wStream* s, rdpRedirection* info);
 
 rdpRedirection* redirection_new(void);
 void redirection_free(rdpRedirection* redirection);

@@ -88,6 +88,47 @@ void rdp_string_free(rdpString* string)
 		free(string->ascii);
 }
 
+int rdp_string_to_unicode(rdpString* str)
+{
+    WCHAR* tmp = NULL;
+    UINT32 len = 0;
+    int asciilen = 0;
+    int widechars = 0;
+    int status = 0;
+
+    /* corner case */
+    if( str->ascii == NULL )
+    {
+        free(str->unicode);
+        str->unicode = NULL;
+        str->length = 0;
+        return 0;
+    }
+
+    asciilen = strlen(str->ascii)+1; /* make sure we count null. */
+    widechars = MultiByteToWideChar(CP_UTF8, 0, (LPCSTR)str->ascii, asciilen, NULL, 0);
+    len = widechars * sizeof(WCHAR);
+    tmp = malloc(len);
+    if( tmp == NULL )
+        return ENOMEM;
+    ZeroMemory(tmp, len);
+
+    status = MultiByteToWideChar(CP_UTF8, 0, (LPCTSTR)str->ascii, asciilen, (LPWSTR)tmp, widechars);
+    if( status == widechars )
+    {
+        str->unicode = (char*)tmp;
+        str->length = len;
+        status = 0;
+    }
+    else
+    {
+        free(tmp);
+        status = EINVAL;
+    }
+
+    return status;
+}
+
 BOOL rdp_recv_server_redirection_pdu(rdpRdp* rdp, wStream* s)
 {
 	UINT16 flags;
@@ -270,4 +311,71 @@ void redirection_free(rdpRedirection* redirection)
 	}
 }
 
+/**
+ * @see http://msdn.microsoft.com/en-us/library/ee443575.aspx
+ *      (RDP_SERVER_REDIRECTION_PACKET)
+ */
+void rdp_send_redirection_packet(rdpRdp* rdp, wStream* s, rdpRedirection* info)
+{
+    UINT16 startpos = 0;
+    UINT16 endpos = 0;
+    UINT16 lenpos = 0;
 
+    UINT16 pduflags = SEC_REDIRECTION_PKT;
+    UINT16 len = 0;
+
+    /* PDU header flag. */
+    startpos = Stream_GetPosition(s);
+    Stream_Write_UINT16(s, pduflags);
+    lenpos = Stream_GetPosition(s);
+    Stream_Write_UINT16(s, len); /* length, we will come back to write this. */
+
+    /* redirection packet information. */
+    Stream_Write_UINT32(s, info->sessionID);
+    Stream_Write_UINT32(s, info->flags);
+
+    /* redirection optional and variable-length fields. Ordering matters. */
+    if( info->targetNetAddress.length > 0 && info->flags & LB_TARGET_NET_ADDRESS )
+    {
+        Stream_Write_UINT32(s, info->targetNetAddress.length);
+        Stream_Write(s, info->targetNetAddress.unicode, info->targetNetAddress.length);
+    }
+    if( info->LoadBalanceInfo != NULL && info->flags & LB_LOAD_BALANCE_INFO )
+    {
+        Stream_Write_UINT32(s, info->LoadBalanceInfoLength);
+        Stream_Write(s, info->LoadBalanceInfo, info->LoadBalanceInfoLength);
+    }
+    if( info->username.length > 0 && info->flags & LB_USERNAME )
+    {
+        Stream_Write_UINT32(s, info->username.length);
+        Stream_Write(s, info->username.unicode, info->username.length);
+    }
+    if( info->domain.length > 0 && info->flags & LB_DOMAIN )
+    {
+        Stream_Write_UINT32(s, info->domain.length);
+        Stream_Write(s, info->domain.unicode, info->domain.length);
+    }
+    if( info->targetFQDN.length > 0 && info->flags & LB_TARGET_FQDN )
+    {
+        Stream_Write_UINT32(s, info->targetFQDN.length);
+        Stream_Write(s, info->targetFQDN.unicode, info->targetFQDN.length);
+    }
+
+    /* the spec says the 8 byte padding is optional, but found that this seems to be expected. */
+    Stream_Write_UINT32(s, 0);
+    Stream_Write_UINT32(s, 0);
+
+    /* calculate and go back to write the length into header. */
+    endpos = Stream_GetPosition(s);
+    len = endpos - startpos;
+    Stream_SetPosition(s, lenpos);
+    Stream_Write_UINT16(s, len);
+    Stream_SetPosition(s, endpos);
+}
+
+void rdp_send_enhanced_security_redirection_packet(rdpRdp* rdp, wStream* s, rdpRedirection* info)
+{
+    Stream_Write_UINT16(s, 0); /* 2 byte pad */
+    rdp_send_redirection_packet(rdp, s, info);
+    Stream_Write_UINT8(s, 0); /* trailing 1 byte pad. */
+}

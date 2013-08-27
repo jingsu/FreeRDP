@@ -45,3 +45,4 @@ if(IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/xrdp-ng")
 	add_subdirectory("xrdp-ng")
 endif()
 
+add_subdirectory(rdpvect)

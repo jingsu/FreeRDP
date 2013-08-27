@@ -270,6 +270,11 @@ static int peer_recv_callback(rdpTransport* transport, wStream* s, void* extra)
 			if (!rdp_server_accept_nego(rdp, s))
 				return -1;
 
+            if (rdp->nego->RoutingToken != NULL)
+            {
+                IFCALL(client->Token, client, rdp->nego->RoutingToken, rdp->nego->RoutingTokenLength);
+            }
+
 			if (rdp->nego->selected_protocol & PROTOCOL_NLA)
 			{
 				sspi_CopyAuthIdentity(&client->identity, &(rdp->nego->transport->credssp->identity));
@@ -440,4 +445,132 @@ void freerdp_peer_free(freerdp_peer* client)
 		free(client->context);
 		free(client);
 	}
+}
+
+static int freerdp_szstr_to_rdpstr(const char* sz, rdpString* rdpstr)
+{
+    rdpstr->ascii = _strdup(sz);
+    if( !rdpstr->ascii )
+    {
+        fprintf(stderr, "ENOMEM duplicating string.\n");
+        return ENOMEM;
+    }
+    if( rdp_string_to_unicode(rdpstr) )
+    {
+        fprintf(stderr, "ENOMEM converting string to unicode.\n");
+        return ENOMEM;
+    }
+    return 0;
+}
+
+BOOL freerdp_peer_redirect(freerdp_peer* client,
+                           UINT32 sessionID,
+                           const char* szTargetNetAddress,
+                           const BYTE* lbInfo,
+                           UINT32 lbInfoLen,
+                           const char* szUsername,
+                           const char* szDomain,
+                           const char* szCreds,
+                           const char* szTargetFQDN)
+{
+    BOOL retval = FALSE;
+    wStream* s = NULL;
+    rdpRdp* rdp = NULL;
+    rdpRedirection* info = NULL;
+
+    if( !client )
+    {
+        fprintf(stderr, "Illegal argument: client is NULL.\n");
+        goto out;
+    }
+    if( !client->context || !client->context->rdp )
+    {
+        fprintf(stderr, "Illegal state: client context or rdp object is NULL.\n");
+        goto out;
+    }
+    rdp = client->context->rdp;
+
+    /* construct the redirection struct based on the input parameters. */
+    info = redirection_new();
+    if( !info )
+    {
+        fprintf(stderr, "ENOMEM: failed to allocate redirection structure.\n");
+        goto out;
+    }
+
+    info->sessionID = sessionID;
+    if( szTargetNetAddress )
+    {
+        info->flags |= LB_TARGET_NET_ADDRESS;
+        if( freerdp_szstr_to_rdpstr(szTargetNetAddress, &info->targetNetAddress) )
+            goto out;
+    }
+    if( lbInfo )
+    {
+        info->flags |= LB_LOAD_BALANCE_INFO;
+        info->LoadBalanceInfo = malloc(lbInfoLen);
+        if( !info->LoadBalanceInfo )
+        {
+            fprintf(stderr, "ENOMEM: failed to allocate blob for load balance info.\n");
+            goto out;
+        }
+        info->LoadBalanceInfoLength = lbInfoLen;
+        CopyMemory(info->LoadBalanceInfo, lbInfo, lbInfoLen);
+    }
+    if( szUsername )
+    {
+        info->flags |= LB_USERNAME;
+        if( freerdp_szstr_to_rdpstr(szUsername, &info->username) )
+            goto out;
+    }
+    if( szDomain )
+    {
+        info->flags |= LB_DOMAIN;
+        if( freerdp_szstr_to_rdpstr(szDomain, &info->domain) )
+            goto out;
+    }
+    if( szCreds )
+    {
+        rdpString rdpstr = {NULL, NULL, 0};
+        info->flags |= LB_PASSWORD;
+        rdpstr.ascii = (char*)szCreds;
+        if( rdp_string_to_unicode(&rdpstr) )
+            goto out;
+        info->PasswordCookie = (BYTE*)rdpstr.unicode;
+        info->PasswordCookieLength = rdpstr.length;
+        /* note, we don't free the rdpstr; it's now managed by info. */
+    }
+    if( szTargetFQDN )
+    {
+        info->flags |= LB_TARGET_FQDN;
+        if (freerdp_szstr_to_rdpstr(szTargetFQDN, &info->targetFQDN) )
+            goto out;
+    }
+
+    /* package up and send the PDU. */
+	s = Stream_New(NULL, 2048); /* magic number reasonable size */
+    if( !s )
+    {
+        fprintf(stderr, "Error: failed to allocate output stream.\n");
+        goto out;
+    }
+    if( rdp_init_stream_pdu(rdp, s) )
+    {
+        fprintf(stderr, "Error: failed to initialize output stream.\n");
+        goto out;
+    }
+
+    rdp_send_enhanced_security_redirection_packet(rdp, s, info);
+    if( rdp_send_pdu(rdp, s, PDU_TYPE_SERVER_REDIRECTION, rdp->mcs->user_id) != TRUE )
+    {
+        fprintf(stderr, "Error: failed to send RDP Server Redirection packet to client.\n");
+        goto out;
+    }
+    retval = TRUE;
+
+ out:
+    if( info )
+        redirection_free(info);
+    Stream_Free(s, TRUE);
+    return retval;
 }

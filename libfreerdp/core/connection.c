@@ -143,7 +143,7 @@ BOOL rdp_client_connect(rdpRdp* rdp)
 	nego_set_cookie_max_length(rdp->nego, settings->CookieMaxLength);
 
 	if (settings->LoadBalanceInfo)
-		nego_set_routing_token(rdp->nego, settings->LoadBalanceInfo, settings->LoadBalanceInfoLength);
+		nego_set_routing_token(rdp->nego, settings->LoadBalanceInfo, settings->LoadBalanceInfoLength, FALSE);
 
 	if (!nego_connect(rdp->nego))
 	{
@@ -232,7 +232,7 @@ BOOL rdp_client_redirect(rdpRdp* rdp)
 
 	if (redirection->flags & LB_LOAD_BALANCE_INFO)
 	{
-		nego_set_routing_token(rdp->nego, redirection->LoadBalanceInfo, redirection->LoadBalanceInfoLength);
+		nego_set_routing_token(rdp->nego, redirection->LoadBalanceInfo, redirection->LoadBalanceInfoLength, FALSE);
 	}
 	else
 	{

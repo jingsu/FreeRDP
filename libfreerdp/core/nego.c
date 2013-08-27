@@ -596,22 +596,45 @@ BOOL nego_read_request(rdpNego* nego, wStream* s)
 
 	if (Stream_GetRemainingLength(s) > 8)
 	{
+        /* We just allocate a fixed sized buffer for stuffing contents. */
+        DWORD rtcookielen = 0;
+        BYTE* rtcookie = malloc(Stream_GetRemainingLength(s)+1);
+        if( !rtcookie )
+        {
+            /* TODO: propogate/handle ENOMEM */
+            fprintf(stderr, "enomem allocating buffer for receiving routing token/cookie.\n");
+            return FALSE;
+        }
+        ZeroMemory(rtcookie, Stream_GetRemainingLength(s)+1);
+
 		/* Optional routingToken or cookie, ending with CR+LF */
 		while (Stream_GetRemainingLength(s) > 0)
 		{
 			Stream_Read_UINT8(s, c);
+            rtcookie[rtcookielen] = c;
+            rtcookielen++;
 
-			if (c != '\x0D')
-				continue;
-
-			Stream_Peek_UINT8(s, c);
-
-			if (c != '\x0A')
-				continue;
-
-			Stream_Seek_UINT8(s);
-			break;
+            /* check if we just stuffed a CRLF */
+            if (c == '\x0A' && rtcookielen >= 2 &&
+                rtcookie[rtcookielen-2] == '\x0D' &&
+                rtcookie[rtcookielen-1] == '\x0A')
+                break;
 		}
+
+        /* Ensure that we got a valid rtcookie. */
+        if (rtcookielen >= 2 &&
+            rtcookie[rtcookielen-2] == '\x0D' &&
+            rtcookie[rtcookielen-1] == '\x0A')
+        {
+            rtcookie[rtcookielen] = '\0'; /* ensure terminate. */
+            nego_set_routing_token(nego, rtcookie, rtcookielen, TRUE);
+        }
+        else
+        {
+            fprintf(stderr, "Malformed routing token received.\n");
+            free(rtcookie);
+            return FALSE;
+        }
 	}
 
 	if (Stream_GetRemainingLength(s) >= 8)
@@ -965,6 +988,8 @@ rdpNego* nego_new(struct rdp_transport * transport)
 
 void nego_free(rdpNego* nego)
 {
+    if (nego->RoutingTokenMallocd)
+        free(nego->RoutingToken);
 	free(nego->cookie);
 	free(nego);
 }
@@ -1049,10 +1074,15 @@ void nego_enable_ext(rdpNego* nego, BOOL enable_ext)
  * @param RoutingTokenLength
  */
 
-void nego_set_routing_token(rdpNego* nego, BYTE* RoutingToken, DWORD RoutingTokenLength)
+void nego_set_routing_token(rdpNego* nego, BYTE* RoutingToken, DWORD RoutingTokenLength, BOOL mustFree)
 {
+    if (nego->RoutingTokenMallocd && nego->RoutingToken != RoutingToken)
+    {
+        free(nego->RoutingToken);
+    }
 	nego->RoutingToken = RoutingToken;
 	nego->RoutingTokenLength = RoutingTokenLength;
+    nego->RoutingTokenMallocd = mustFree;
 }
 
 /**
