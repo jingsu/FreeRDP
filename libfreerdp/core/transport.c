@@ -419,6 +419,14 @@ int transport_read(rdpTransport* transport, wStream* s)
 	pduLength = 0;
 	transport_status = 0;
 
+    if( transport_get_raw_mode(transport) )
+    {
+        int capacity = Stream_GetRemainingLength(s);
+        status = transport_read_layer(transport, Stream_Pointer(s), capacity);
+        if( status <= 0 ) status = -1;
+        goto out;
+    }
+
 	/* first check if we have header */
 	streamPosition = Stream_GetPosition(s);
 
@@ -482,20 +490,20 @@ int transport_read(rdpTransport* transport, wStream* s)
 	}
 
 	status = transport_read_layer(transport, Stream_Buffer(s) + streamPosition, pduLength - streamPosition);
-
+ out:
 	if (status < 0)
 		return status;
 
 	transport_status += status;
 
-#ifdef WITH_DEBUG_TRANSPORT
+    //#ifdef WITH_DEBUG_TRANSPORT
 	/* dump when whole PDU is read */
 	if (streamPosition + status >= pduLength)
 	{
-		fprintf(stderr, "Local < Remote\n");
+		fprintf(stderr, "Local < Remote , (%p - layer %d , blocking %d raw %d ts %d pdul %d)\n", transport, transport->layer, transport->blocking, transport->raw, transport_status, pduLength);
 		winpr_HexDump(Stream_Buffer(s), pduLength);
 	}
-#endif
+    //#endif
 
 	return transport_status;
 }
@@ -524,13 +532,13 @@ int transport_write(rdpTransport* transport, wStream* s)
 	length = Stream_GetPosition(s);
 	Stream_SetPosition(s, 0);
 
-#ifdef WITH_DEBUG_TRANSPORT
+    //#ifdef WITH_DEBUG_TRANSPORT
 	if (length > 0)
 	{
-		fprintf(stderr, "Local > Remote\n");
+		fprintf(stderr, "Local > Remote , (%p - layer %d , blocking %d, raw %d)\n", transport, transport->layer, transport->blocking, transport->raw);
 		winpr_HexDump(Stream_Buffer(s), length);
 	}
-#endif
+    //#endif
 
 	while (length > 0)
 	{
@@ -741,6 +749,12 @@ int transport_check_fds(rdpTransport** ptransport)
 
 		received = transport->ReceiveBuffer;
 		transport->ReceiveBuffer = StreamPool_Take(transport->ReceivePool, 0);
+        if( status > length )
+        {
+            UINT16 leftover = status - length;
+            Stream_SetPosition(received, length);
+            Stream_Write(transport->ReceiveBuffer, Stream_Pointer(received), leftover);
+        }
 
 		Stream_SetPosition(received, length);
 		Stream_SealLength(received);
@@ -752,7 +766,7 @@ int transport_check_fds(rdpTransport** ptransport)
 			/* transport might now have been freed by rdp_client_redirect and a new rdp->transport created */
 			/* so only release if still valid */
 			Stream_Release(received);
-			
+
 
 		if (recv_status < 0)
 			status = -1;
@@ -804,10 +818,10 @@ static void* transport_client_thread(void* arg)
 	transport = (rdpTransport*) arg;
 	assert(NULL != transport);
 	assert(NULL != transport->settings);
-	
+
 	instance = (freerdp*) transport->settings->instance;
 	assert(NULL != instance);
-	
+
 	context = instance->context;
 	assert(NULL != instance->context);
 
@@ -876,7 +890,7 @@ void transport_free(rdpTransport* transport)
 	if (transport != NULL)
 	{
         SetEvent(transport->stopEvent);
-        
+
 		if (transport->ReceiveBuffer)
 			Stream_Release(transport->ReceiveBuffer);
 

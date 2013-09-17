@@ -257,7 +257,9 @@ BOOL rdp_client_connect(rdpRdp* rdp)
 
 	rdp_set_blocking_mode(rdp, FALSE);
 
-	rdp_client_transition_to_state(rdp, CONNECTION_STATE_NEGO);
+	if( rdp_client_transition_to_state(rdp, CONNECTION_STATE_NEGO) > 0 )
+        return TRUE;
+
 	rdp->finalize_sc_pdus = 0;
 
 	if (!mcs_send_connect_initial(rdp->mcs))
@@ -797,6 +799,8 @@ int rdp_client_transition_to_state(rdpRdp* rdp, int state)
 			status = -1;
 			break;
 	}
+    if( !status && rdp->instance->TransitionHook )
+        status = rdp->instance->TransitionHook(rdp->instance->TransitionHookArg, state);
 
 	return status;
 }

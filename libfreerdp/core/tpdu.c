@@ -110,7 +110,10 @@ void tpdu_write_header(wStream* s, UINT16 length, BYTE code)
 	else
 	{
 		Stream_Write_UINT16(s, 0); /* DST-REF */
-		Stream_Write_UINT16(s, 0); /* SRC-REF */
+        if( code == X224_TPDU_CONNECTION_CONFIRM )
+            Stream_Write_UINT16(s, 0x3412); /* SRC-REF */
+        else
+            Stream_Write_UINT16(s, 0); /* SRC-REF */
 		Stream_Write_UINT8(s, 0); /* Class 0 */
 	}
 }

@@ -18,6 +18,7 @@
 # Servers
 
 add_subdirectory(common)
+add_subdirectory(rdpvect)
 
 if(WITH_SAMPLE)
 	add_subdirectory(Sample)

@@ -74,6 +74,7 @@ struct rdp_transport
 	BOOL async;
 	HANDLE ReadMutex;
 	HANDLE WriteMutex;
+    BOOL raw;
 };
 
 wStream* transport_send_stream_init(rdpTransport* transport, int size);
@@ -93,6 +94,15 @@ void transport_get_fds(rdpTransport* transport, void** rfds, int* rcount);
 int transport_check_fds(rdpTransport** ptransport);
 BOOL transport_set_blocking_mode(rdpTransport* transport, BOOL blocking);
 void transport_get_read_handles(rdpTransport* transport, HANDLE* events, DWORD* count);
+
+static inline void transport_set_raw_mode(rdpTransport* transport, BOOL raw)
+{
+    transport->raw = raw;
+}
+static inline BOOL transport_get_raw_mode(rdpTransport* transport)
+{
+    return transport->raw;
+}
 
 wStream* transport_receive_pool_take(rdpTransport* transport);
 int transport_receive_pool_return(rdpTransport* transport, wStream* pdu);

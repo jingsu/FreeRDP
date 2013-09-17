@@ -258,6 +258,15 @@ static int peer_recv_callback(rdpTransport* transport, wStream* s, void* extra)
 	freerdp_peer* client = (freerdp_peer*) extra;
 	rdpRdp* rdp = client->context->rdp;
 
+    fprintf(stderr, "PEER_RECV_CALLBACK[%s] rdp->state=%d\n", __func__, rdp->state);
+    //winpr_HexDump(Stream_Buffer(s), Stream_Length(s));
+
+    if( s != NULL ) { /* grab a copy of the message */
+        client->msgcopy[rdp->state] = malloc( Stream_Length(s) );
+        client->msglen[rdp->state] = Stream_Length(s);
+        memcpy(client->msgcopy[rdp->state], Stream_Buffer(s), Stream_Length(s));
+    }
+
 	switch (rdp->state)
 	{
 		case CONNECTION_STATE_INITIAL:

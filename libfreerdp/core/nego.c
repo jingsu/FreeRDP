@@ -584,6 +584,8 @@ BOOL nego_read_request(rdpNego* nego, wStream* s)
 	BYTE c;
 	BYTE type;
 
+    fprintf(stderr, "[%s]\n", __func__);
+    //winpr_HexDump(Stream_Buffer(s), Stream_Length(s));
 	tpkt_read_header(s);
 
 	if (!tpdu_read_connection_request(s, &li))

@@ -29,6 +29,7 @@
 #include "connection.h"
 #include "extension.h"
 #include "message.h"
+#include "peer.h"
 
 #include <assert.h>
 
@@ -160,7 +161,7 @@ BOOL freerdp_connect(freerdp* instance)
 				update_recv_surfcmds(update, Stream_Length(s) , s);
 				update->EndPaint(update->context);
 				Stream_Release(s);
-			
+
 				StreamPool_Return(rdp->transport->ReceivePool, s);
 			}
 
@@ -476,4 +477,112 @@ void freerdp_free(freerdp* instance)
 	{
 		free(instance);
 	}
+}
+
+/* */
+static int freerdp_pipe_recv(rdpTransport* transport, wStream* stream, void* extra)
+{
+    freerdp_pipecontext_t* context = (freerdp_pipecontext_t*)extra;
+    rdpTransport* dst = NULL;
+    int writelen = 0;
+
+    fprintf(stderr, "[%s] state=%d\n", __func__, context->state);
+
+    /* the source will be the transport is that triggered the recv. */
+    if( transport == context->peer->context->rdp->transport )
+    {
+        fprintf(stderr, "===== PIPE  peer --> client\n");
+        dst = context->client->context->rdp->transport;
+    }
+    else if( transport == context->client->context->rdp->transport )
+    {
+        fprintf(stderr, "===== PIPE  client --> peer\n");
+        dst = context->peer->context->rdp->transport;
+    }
+    //winpr_HexDump(Stream_Buffer(stream), Stream_Length(stream));
+
+#if 0
+    /* DEBUG */
+    if( context->state == 1 )
+    {
+        fprintf(stderr, "@@@ Recieved MCS connect request from peer.\n");
+        rdpMcs* mcstmp = mcs_new(dst);
+        BOOL s = mcs_recv_connect_initial(mcstmp, stream);
+        context->mcs = mcstmp;
+        fprintf(stderr, "  --> %s\n", s ? "ok" : "BAD");
+        context->state = 2;
+    }
+    else if( context->state == 2 )
+    {
+        fprintf(stderr, "@@@ Recieved MCS connect response from target.\n");
+        rdpMcs* mcstmp = mcs_new(dst);
+        BOOL s = mcs_recv_connect_response(mcstmp, stream);
+        fprintf(stderr, "  --> %s\n", s ? "ok" : "BAD");
+        context->state = 3;
+    }
+#endif
+
+    /* move the pointer in the stream, as per transport write's semantics. */
+    Stream_SetPosition(stream, 0);
+    UINT16 tpktlen = tpkt_read_header(stream);
+    if( tpktlen == 0 )
+    {
+        /* okay... possibly fastpath PDU ? */
+        tpktlen = fastpath_read_header(NULL, stream);
+        if( tpktlen == 0 )
+        {
+            fprintf(stderr, "ERROR: tpkt read header returned unexpected bad value. %u\n", tpktlen);
+            return -1;
+        }
+    }
+    fprintf(stderr, "stream length : %zd , tpktlen : %u \n", Stream_Length(stream), tpktlen);
+
+    Stream_SetPosition(stream, tpktlen);
+    writelen = transport_write(dst, stream);
+    if( writelen != tpktlen )
+    {
+        fprintf(stderr, "ERROR in pipe write. writelen=%d, expected %zd\n", writelen, Stream_Length(stream));
+    }
+    return writelen;
+}
+
+/** permanently proxy pipe.
+ *
+ * The peer is the "user" connecting using an RDP program.  The client
+ * is the target machine we're trying to tunnel the peer to.
+ */
+FREERDP_API freerdp_pipecontext_t* freerdp_pipe(freerdp_peer* peer, freerdp* client)
+{
+    freerdp_pipecontext_t* retval = NULL;
+
+    rdpTransport* peerTransport = NULL;
+    rdpTransport* clientTransport = NULL;
+
+    retval = malloc(sizeof(freerdp_pipecontext_t));
+    if( retval == NULL )
+    {
+        fprintf(stderr, "ENOMEM in allocating context for freerdp pipe.\n");
+        goto out;
+    }
+    memset(retval, 0, sizeof(freerdp_pipecontext_t));
+    retval->peer = peer;
+    retval->client = client;
+
+    /* we are now going to change the transport states. */
+    peerTransport = peer->context->rdp->transport;
+    peerTransport->ReceiveCallback = freerdp_pipe_recv;
+    peerTransport->ReceiveExtra = retval;
+    transport_set_raw_mode(peerTransport, TRUE);
+
+    clientTransport = client->context->rdp->transport;
+    clientTransport->ReceiveCallback = freerdp_pipe_recv;
+    clientTransport->ReceiveExtra = retval;
+    transport_set_raw_mode(clientTransport, TRUE);
+
+    retval->state = 1;
+
+    /* success */
+
+ out:
+    return retval;
 }

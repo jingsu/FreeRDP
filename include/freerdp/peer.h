@@ -83,6 +83,9 @@ struct rdp_freerdp_peer
 	BOOL activated;
 	BOOL authenticated;
 	SEC_WINNT_AUTH_IDENTITY identity;
+
+    BYTE* msgcopy[20];
+    UINT16 msglen[20];
 };
 
 #ifdef __cplusplus
