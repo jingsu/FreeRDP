@@ -7,7 +7,7 @@
  * client RDP connections to allow the client to be
  * redirected/tunnelled.
  *
- * All messages are fixed size 512-bytes, zero padded, for fixed-sized
+ * All messages are fixed size bytes, zero padded, for size
  * simplicity.  We refer to 'server' as this service.  We refer to
  * 'watcher' as the process watching/interacting with this server over
  * the text protocol.  Note that the messages allow for embedded NULLs
@@ -42,6 +42,8 @@
  * This is necessary because some clients pass a default Cookie as token.
  *   <conn_id>\0wipe_token
  *
+ * WATCHER: Run as man-in-middle proxy to server at target IP.
+ *   <conn_id>\0mimproxy\0<server_ip>
  *
  * NOTES:
  *
@@ -111,6 +113,8 @@ typedef struct _rdpvect_peercontext
     char* login;
     char* domain;
     char* password;
+
+	freerdp* target;
 
 } rdpvect_peercontext_t;
 
@@ -207,7 +211,6 @@ _hexdump(void* buf, int len)
 static BOOL
 _send_redirect(freerdp_peer* client, char* token, DWORD tokenlen, const char* targetIP, const char* targetFQDN)
 {
-#if 1
     BOOL rc = FALSE;
     BOOL freetoken = FALSE;
 
@@ -250,40 +253,104 @@ _send_redirect(freerdp_peer* client, char* token, DWORD tokenlen, const char* ta
     if( freetoken )
         free(token);
     return rc;
-#else
-    static const char* RDPVECT_TOKEN = "JING01234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n";
+}
+
+static BOOL
+_mim_proxy_postnego(void* arg)
+{
+    freerdp_peer* client = (freerdp_peer*)arg;
     rdpvect_peercontext_t* context = (rdpvect_peercontext_t*)client->context;
-    const char* redir_target = NULL;
-    const char* redir_token = NULL;
-    const char* redir_fqdn = NULL;
-    UINT32 redir_tokenlen = 0;
 
-    RDPVECTLOG("sending client redirect.");
-    if( context->token && strcmp(RDPVECT_TOKEN, (const char*)context->token) == 0 )
-    {
-        redir_target = "192.168.1.116";
-        redir_token = NULL;
-        redir_tokenlen = 0;
-        redir_fqdn = NULL;
-    }
-    else
-    {
-        redir_target = NULL;
-        redir_token = RDPVECT_TOKEN;
-        redir_tokenlen = strlen(redir_token);
-        redir_fqdn = NULL; /*"192.168.1.61";*/
-    }
+    freerdp_pipe(client, context->target);
 
-    if( !freerdp_peer_redirect(client, 0,
-                               redir_target,
-                               (const BYTE*)redir_token, redir_tokenlen,
-                               NULL, NULL, NULL,
-                               redir_fqdn) )
+    return FALSE;
+}
+
+static void
+_mim_proxy(freerdp_peer* client, const char* targetIP)
+{
+    rdpvect_peercontext_t* context = (rdpvect_peercontext_t*)client->context;
+
+    /* start a connection to the target IP. */
+    context->target = freerdp_new();
+    context->target->PostNego = _mim_proxy_postnego;
+    context->target->PostNegoArg = client;
+
+    freerdp_context_new(context->target);
+    context->target->settings->ServerHostname = strdup(targetIP);
+    context->target->settings->IgnoreCertificate = FALSE;
+    context->target->settings->TlsSecurity = FALSE;
+    context->target->settings->NlaSecurity = FALSE;
+    context->target->settings->RdpSecurity = TRUE;
+    context->target->settings->ExtSecurity = FALSE;
+
+    if (!freerdp_connect(context->target) )
     {
-        RDPVECTERR("failed to send redirect to client.");
-        return FALSE;
+        RDPVECTERR("Failed to connect to target %s", targetIP);
+        return;
     }
-    return TRUE;
+#if 0
+    {
+        int i;
+        int rcount;
+        int wcount;
+        void* rfds[32];
+        void* wfds[32];
+        fd_set rfds_set;
+        fd_set wfds_set;
+        int max_fds = 0;
+
+        ZeroMemory(rfds, sizeof(rfds));
+        ZeroMemory(wfds, sizeof(wfds));
+
+        while( 1 )
+        {
+            rcount = 0;
+            wcount = 0;
+
+            if (freerdp_get_fds(context->target, rfds, &rcount, wfds, &wcount) != TRUE)
+            {
+                printf("Failed to get FreeRDP file descriptor\n");
+                break;
+            }
+
+            max_fds = 0;
+            FD_ZERO(&rfds_set);
+            FD_ZERO(&wfds_set);
+
+            for (i = 0; i < rcount; i++)
+            {
+                int fds = (int)(long)(rfds[i]);
+
+                if (fds > max_fds)
+                    max_fds = fds;
+
+                FD_SET(fds, &rfds_set);
+            }
+
+            if (max_fds == 0)
+                break;
+
+            if (select(max_fds + 1, &rfds_set, &wfds_set, NULL, NULL) == -1)
+            {
+                /* these are not really errors */
+                if (!((errno == EAGAIN) ||
+                      (errno == EWOULDBLOCK) ||
+                      (errno == EINPROGRESS) ||
+                      (errno == EINTR))) /* signal occurred */
+                {
+                    printf("tfreerdp_run: select failed\n");
+                    break;
+                }
+            }
+
+            if (freerdp_check_fds(context->target) != TRUE)
+            {
+                printf("Failed to check FreeRDP file descriptor\n");
+                break;
+            }
+        }
+    }
 #endif
 }
 
@@ -648,6 +715,12 @@ _client_wait_command(freerdp_peer* client)
         free(context->token);
         context->token = NULL;
         context->tokenlen = 0;
+    }
+    else if( strcmp(args[1], "mimproxy") == 0 )
+    {
+        char* targetIP = args[2];
+        _mim_proxy(client, targetIP);
+        return FALSE;
     }
     else
     {

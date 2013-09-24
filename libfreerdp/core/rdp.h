@@ -116,6 +116,7 @@
 #define STREAM_MED						0x02
 #define STREAM_HI						0x04
 
+
 struct rdp_rdp
 {
 	int state;
@@ -166,7 +167,7 @@ void rdp_write_security_header(wStream* s, UINT16 flags);
 BOOL rdp_read_share_control_header(wStream* s, UINT16* length, UINT16* type, UINT16* channel_id);
 void rdp_write_share_control_header(wStream* s, UINT16 length, UINT16 type, UINT16 channel_id);
 
-BOOL rdp_read_share_data_header(wStream* s, UINT16* length, BYTE* type, UINT32* share_id, 
+BOOL rdp_read_share_data_header(wStream* s, UINT16* length, BYTE* type, UINT32* share_id,
 			BYTE *compressed_type, UINT16 *compressed_len);
 
 void rdp_write_share_data_header(wStream* s, UINT16 length, BYTE type, UINT32 share_id);

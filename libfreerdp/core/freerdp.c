@@ -29,6 +29,7 @@
 #include "connection.h"
 #include "extension.h"
 #include "message.h"
+#include "peer.h"
 
 #include <winpr/crt.h>
 #include <winpr/stream.h>
@@ -451,4 +452,130 @@ void freerdp_free(freerdp* instance)
 	{
 		free(instance);
 	}
+}
+
+/** permanently proxy pipe.
+ */
+FREERDP_API void freerdp_pipe(freerdp_peer* peer, freerdp* client)
+{
+	fd_set rfds_set;
+    int rfds_maxfd;
+
+    wStream* streamBuffer = NULL;
+    rdpTransport* peerTransport = NULL;
+    rdpTransport* clientTransport = NULL;
+
+    streamBuffer = Stream_New(NULL, 16*1024);
+    if( streamBuffer == NULL )
+    {
+        fprintf(stderr, "ENOMEM in %s allocating buffer streams\n", __func__);
+        goto out;
+    }
+
+    /* we are now going to change the transport states. */
+    peerTransport = peer->context->rdp->transport;
+    peerTransport->ReceiveCallback = NULL;
+    peerTransport->ReceiveExtra = NULL;
+	//transport_set_blocking_mode(peerTransport, FALSE);
+
+    clientTransport = client->context->rdp->transport;
+    clientTransport->ReceiveCallback = NULL;
+    clientTransport->ReceiveExtra = NULL;
+	//transport_set_blocking_mode(clientTransport, FALSE);
+
+    /* Get the FDs and keep them in the array. */
+    void* peerrfds[32];
+    int peerrcount = 0;
+    void* clientrfds[32];
+    int clientrcount = 0;
+    transport_get_fds(peerTransport, peerrfds, &peerrcount);
+    transport_get_fds(clientTransport, clientrfds, &clientrcount);
+
+    while( 1 )
+    {
+        int i;
+        BOOL peerhasdata = FALSE;
+        BOOL clienthasdata = FALSE;
+
+        FD_ZERO(&rfds_set);
+        rfds_maxfd = 0;
+
+        /* get FDs. */
+        for( i = 0; i < peerrcount; i++ )
+        {
+            int fd = (int)(long)peerrfds[i];
+            FD_SET(fd, &rfds_set);
+            if( fd > rfds_maxfd ) rfds_maxfd = fd;
+        }
+        for( i = 0; i < clientrcount; i++ )
+        {
+            int fd = (int)(long)clientrfds[i];
+            FD_SET(fd, &rfds_set);
+            if( fd > rfds_maxfd ) rfds_maxfd = fd;
+        }
+
+        /* do the select and wait for input. */
+        if( select(rfds_maxfd+1, &rfds_set, NULL, NULL, NULL) == -1 )
+        {
+			/* these are not really errors */
+			if (!((errno == EAGAIN) ||
+				(errno == EWOULDBLOCK) ||
+				(errno == EINPROGRESS) ||
+				(errno == EINTR))) /* signal occurred */
+			{
+                fprintf(stderr, "error in select. errno %d", errno);
+                break;
+            }
+        }
+
+        /* check if the FDs got flagged. */
+        for( i = 0; i < peerrcount; i++ )
+        {
+            int fd = (int)(long)peerrfds[i];
+            if( FD_ISSET(fd, &rfds_set) )
+            {
+                peerhasdata = TRUE;
+                break;
+            }
+        }
+        for( i = 0; i < clientrcount; i++ )
+        {
+            int fd = (int)(long)clientrfds[i];
+            if( FD_ISSET(fd, &rfds_set) )
+            {
+                clienthasdata = TRUE;
+                break;
+            }
+        }
+
+        /* Pipe between the transports. */
+        if( peerhasdata )
+        {
+            Stream_SetPosition(streamBuffer, 0);
+            Stream_SetLength(streamBuffer, 0);
+            i = transport_read(peerTransport, streamBuffer);
+            if( i > 0 )
+            {
+                Stream_SetPosition(streamBuffer, i);
+                Stream_SealLength(streamBuffer);
+                transport_write(clientTransport, streamBuffer);
+            }
+        }
+        if( clienthasdata )
+        {
+            Stream_SetPosition(streamBuffer, 0);
+            Stream_SetLength(streamBuffer, 0);
+            i = transport_read(clientTransport, streamBuffer);
+            if( i > 0 )
+            {
+                Stream_SetPosition(streamBuffer, i);
+                Stream_SealLength(streamBuffer);
+                transport_write(peerTransport, streamBuffer);
+            }
+        }
+    }
+ out:
+
+    if( streamBuffer != NULL )
+        Stream_Free(streamBuffer, TRUE);
 }

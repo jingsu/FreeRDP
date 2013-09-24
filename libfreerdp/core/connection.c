@@ -158,6 +158,12 @@ BOOL rdp_client_connect(rdpRdp* rdp)
 			settings->AutoLogonEnabled = TRUE;
 	}
 
+    if( rdp->instance->PostNego != NULL )
+    {
+        if (!rdp->instance->PostNego(rdp->instance->PostNegoArg))
+            return FALSE;
+    }
+
 	rdp_set_blocking_mode(rdp, FALSE);
 	rdp->state = CONNECTION_STATE_NEGO;
 	rdp->finalize_sc_pdus = 0;
@@ -166,7 +172,7 @@ BOOL rdp_client_connect(rdpRdp* rdp)
 	{
 		if (!connectErrorCode)
 		{
-			connectErrorCode = MCSCONNECTINITIALERROR;                      
+			connectErrorCode = MCSCONNECTINITIALERROR;
 		}
 		fprintf(stderr, "Error: unable to send MCS Connect Initial\n");
 		return FALSE;

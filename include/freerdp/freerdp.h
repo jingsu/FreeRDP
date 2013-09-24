@@ -66,6 +66,8 @@ typedef int (*pLogonErrorInfo)(freerdp* instance, UINT32 data, UINT32 type);
 typedef int (*pSendChannelData)(freerdp* instance, int channelId, BYTE* data, int size);
 typedef int (*pReceiveChannelData)(freerdp* instance, int channelId, BYTE* data, int size, int flags, int total_size);
 
+typedef BOOL (*pPostNego)(void* arg);
+
 /**
  * Defines the context for a given instance of RDP connection.
  * It is embedded in the rdp_freerdp structure, and allocated by a call to freerdp_context_new().
@@ -188,7 +190,7 @@ struct rdp_freerdp
 											   Callback for certificate validation.
 											   Used to verify that an unknown certificate is trusted. */
 	ALIGN64 pVerifyChangedCertificate VerifyChangedCertificate; /**< (offset 52)
-															 Callback for changed certificate validation. 
+															 Callback for changed certificate validation.
 															 Used when a certificate differs from stored fingerprint.
 															 If returns TRUE, the new fingerprint will be trusted and old thrown out. */
 
@@ -206,6 +208,9 @@ struct rdp_freerdp
 											   Clients will typically use a function that calls freerdp_channels_data() to perform the needed tasks. */
 
 	UINT64 paddingE[80 - 66]; /* 66 */
+
+    ALIGN64 pPostNego PostNego;
+    ALIGN64 void*     PostNegoArg;
 };
 
 FREERDP_API int freerdp_context_new(freerdp* instance);
@@ -231,6 +236,8 @@ FREERDP_API freerdp* freerdp_new(void);
 FREERDP_API void freerdp_free(freerdp* instance);
 
 FREERDP_API BOOL freerdp_focus_required(freerdp* instance);
+
+FREERDP_API void freerdp_pipe(freerdp_peer* a, freerdp* b);
 
 #ifdef __cplusplus
 }
