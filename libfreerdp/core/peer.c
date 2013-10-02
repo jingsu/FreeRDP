@@ -72,7 +72,10 @@ static BOOL freerdp_peer_check_fds(freerdp_peer* client)
 	rdpRdp* rdp;
 
 	rdp = client->context->rdp;
+    if( rdp->state == CONNECTION_STATE_INITIAL )
+    {
 
+    }
 	status = rdp_check_fds(rdp);
 
 	if (status < 0)

@@ -29,6 +29,7 @@ extern "C" {
 
 FREERDP_API int freerdp_tcp_connect(const char* hostname, int port);
 FREERDP_API int freerdp_tcp_read(int sockfd, BYTE* data, int length);
+FREERDP_API int freerdp_tcp_peek(int sockfd, BYTE* data, int length);
 FREERDP_API int freerdp_tcp_write(int sockfd, BYTE* data, int length);
 FREERDP_API int freerdp_tcp_wait_read(int sockfd);
 FREERDP_API int freerdp_tcp_wait_write(int sockfd);

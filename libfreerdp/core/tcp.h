@@ -51,6 +51,7 @@ struct rdp_tcp
 BOOL tcp_connect(rdpTcp* tcp, const char* hostname, UINT16 port);
 BOOL tcp_disconnect(rdpTcp* tcp);
 int tcp_read(rdpTcp* tcp, BYTE* data, int length);
+int tcp_peek(rdpTcp* tcp, BYTE* data, int length);
 int tcp_write(rdpTcp* tcp, BYTE* data, int length);
 int tcp_wait_read(rdpTcp* tcp);
 int tcp_wait_write(rdpTcp* tcp);

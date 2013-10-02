@@ -168,6 +168,11 @@ int tcp_read(rdpTcp* tcp, BYTE* data, int length)
 	return freerdp_tcp_read(tcp->sockfd, data, length);
 }
 
+int tcp_peek(rdpTcp* tcp, BYTE* data, int length)
+{
+    return freerdp_tcp_peek(tcp->sockfd, data, length);
+}
+
 int tcp_write(rdpTcp* tcp, BYTE* data, int length)
 {
 	return freerdp_tcp_write(tcp->sockfd, data, length);

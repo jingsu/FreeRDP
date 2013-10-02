@@ -95,6 +95,8 @@ int transport_check_fds(rdpTransport** ptransport);
 BOOL transport_set_blocking_mode(rdpTransport* transport, BOOL blocking);
 void transport_get_read_handles(rdpTransport* transport, HANDLE* events, DWORD* count);
 
+int transport_peek_fds(rdpTransport* transport, wStream* s);
+
 static inline void transport_set_raw_mode(rdpTransport* transport, BOOL raw)
 {
     transport->raw = raw;

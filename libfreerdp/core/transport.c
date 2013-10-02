@@ -781,6 +781,24 @@ int transport_check_fds(rdpTransport** ptransport)
 	return 0;
 }
 
+int transport_peek_fds(rdpTransport* transport, wStream* s)
+{
+    int status = -1;
+    if (transport->layer == TRANSPORT_LAYER_TCP)
+    {
+        status = tcp_peek(transport->TcpIn,
+                          Stream_Pointer(s),
+                          Stream_Capacity(s) - Stream_GetPosition(s));
+    }
+    else
+    {
+        /* unsupported on all other transports. */
+        status = 0;
+    }
+
+    return status;
+}
+
 BOOL transport_set_blocking_mode(rdpTransport* transport, BOOL blocking)
 {
 	BOOL status;

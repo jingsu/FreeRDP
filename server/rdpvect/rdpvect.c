@@ -286,7 +286,7 @@ _mim_proxy(freerdp_peer* client, const char* targetIP)
     freerdp_context_new(target);
     target->settings->ServerHostname = strdup(targetIP);
     target->settings->IgnoreCertificate = TRUE;
-    target->settings->AuthenticationOnly = FALSE; /*TRUE;*/
+    target->settings->AuthenticationOnly = FALSE;
     target->settings->TlsSecurity = client->settings->TlsSecurity;
     target->settings->NlaSecurity = client->settings->NlaSecurity;
     target->settings->RdpSecurity = client->settings->RdpSecurity;

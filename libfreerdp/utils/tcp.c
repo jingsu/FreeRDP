@@ -152,6 +152,40 @@ int freerdp_tcp_read(int sockfd, BYTE* data, int length)
 	return status;
 }
 
+/**
+ * NOTE: peeking on blocking sockets when the read buffer is empty
+ * will result in blocking!
+ */
+int freerdp_tcp_peek(int sockfd, BYTE* data, int length)
+{
+    int status = recv(sockfd, data, length, MSG_PEEK);
+    if (status == 0 )
+    {
+        status = -1; /* peer disconnected */
+    }
+	else if (status < 0)
+	{
+#ifdef _WIN32
+		int wsa_error = WSAGetLastError();
+
+		/* No data available */
+		if (wsa_error == WSAEWOULDBLOCK)
+			return 0;
+
+		fprintf(stderr, "recv() error: %d\n", wsa_error);
+#else
+		/* No data available */
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
+			return 0;
+
+		perror("recv");
+#endif
+		return -1;
+	}
+
+    return status;
+}
+
 int freerdp_tcp_write(int sockfd, BYTE* data, int length)
 {
 	int status;
@@ -185,7 +219,7 @@ int freerdp_tcp_wait_read(int sockfd)
 	if(sockfd<1)
 	{
 	    fprintf(stderr, "Invalid socket to watch: %d\n", sockfd);
-	    return 0 ;	    
+	    return 0 ;
 	}
 	FD_ZERO(&fds);
 	FD_SET(sockfd, &fds);
